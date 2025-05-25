@@ -19,5 +19,5 @@ A fully functional client-server chat app built in Python using sockets, threadi
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/spawleyiu/chat-app.git
+git clone https://github.com/spawley1iu/chat-app.git
 cd chat-app

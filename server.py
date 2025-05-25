@@ -1,15 +1,54 @@
 import socket
+import threading
+from encryption import encrypt_message, decrypt_message
 
-HOST = '127.0.0.1'  # localhost
-PORT = 65432        # arbitrary non-privileged port
+HOST = '127.0.0.1'
+PORT = 65432
 
-server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_socket.bind((HOST, PORT))
-server_socket.listen()
+clients = {}
+lock = threading.Lock()
 
-print(f"Server listening on {HOST}:{PORT}...")
-conn, addr = server_socket.accept()
-print(f"Connected by {addr}")
+def broadcast(message, sender_conn=None):
+    with lock:
+        for conn in clients:
+            if conn != sender_conn:
+                try:
+                    conn.sendall(encrypt_message(message))
+                except:
+                    conn.close()
+                    del clients[conn]
 
-conn.sendall(b"Hello, Client!")
-conn.close()
+def handle_client(conn, addr):
+    try:
+        conn.sendall(b"Enter your username: ")
+        username = conn.recv(1024).decode().strip()
+        with lock:
+            clients[conn] = username
+        broadcast(f"{username} has joined the chat!", conn)
+
+        while True:
+            msg = conn.recv(1024)
+            if not msg:
+                break
+            decrypted_msg = decrypt_message(msg)
+            full_msg = f"{username}: {decrypted_msg}"
+            broadcast(full_msg, conn)
+    except:
+        pass
+    finally:
+        with lock:
+            if conn in clients:
+                broadcast(f"{clients[conn]} has left the chat.")
+                del clients[conn]
+        conn.close()
+
+def start_server():
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind((HOST, PORT))
+    server.listen()
+    print(f"Server listening on {HOST}:{PORT}")
+    while True:
+        conn, addr = server.accept()
+        threading.Thread(target=handle_client, args=(conn, addr)).start()
+
+start_server()
